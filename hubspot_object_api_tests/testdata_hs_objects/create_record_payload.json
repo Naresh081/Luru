@@ -1,0 +1,11 @@
+{
+    "dealname": "API_AUTO_gstp",
+    "amount": 100,
+    "dealstage": "appointmentscheduled",
+    "closedate": "2023-08-31",
+    "hubspot_owner_id": {
+        "sor_object_name": "OWNER",
+        "sor_record_id": "1193605105",
+        "sor_record_name": "Rajkumar"
+    }
+}

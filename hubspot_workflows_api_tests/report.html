@@ -1,0 +1,2998 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>report.html</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    let visibleString = getQueryParameter('visible') || 'all';
+    visibleString = visibleString.toLowerCase();
+    const checkedItems = visibleString.split(',');
+
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++) {
+        filterItems[i].hidden = false;
+
+        if (visibleString != 'all') {
+            filterItems[i].checked = checkedItems.includes(filterItems[i].getAttribute('data-test-result'));
+            filterTable(filterItems[i]);
+        }
+    }
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 25-Aug-2023 at 17:50:18 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.2.0</p>
+    <h2>Summary</h2>
+    <p>46 tests ran in 69.85 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">46 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>, <input checked="true" class="filter" data-test-result="rerun" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="rerun">0 rerun</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_worflows_error_handling.py::test_post_schedule_workflow_request_error_handling</td>
+          <td class="col-duration">1.20</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_worflows_error_handling.py::test_put_worklow_with_error_handling</td>
+          <td class="col-duration">1.68</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\update_workflow_payload.json
+HTTP Error: 404 Client Error: Not Found for url: https://b2btesterscom.s1.my.looru.ai/api/workflows/87f05ba7-f2e0-42f5-8bc3-fc0934ebc3c0
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_worflows_error_handling.py::test_post_pause_with_error_handling</td>
+          <td class="col-duration">1.29</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_worflows_error_handling.py::test_post_unpause_with_error_handling</td>
+          <td class="col-duration">0.84</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_worflows_error_handling.py::test_get_ls_worklow_with_invalid_endpoint</td>
+          <td class="col-duration">0.88</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>An error occurred: 404 Client Error: Not Found for url: https://b2btesterscom.s1.my.looru.ai/api/workflow
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_worflows_error_handling.py::test_get_worklow_with_invalid_endpoint</td>
+          <td class="col-duration">1.81</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>An error occurred: 404 Client Error: Not Found for url: https://b2btesterscom.s1.my.looru.ai/api/workflows/87f05ba7-f2e0-42f5-8bc3-fc0934ebc3c
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_worflows_error_handling.py::test_delete_workflow_with_error_hadling</td>
+          <td class="col-duration">1.84</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>An error occurred: 404 Client Error: Not Found for url: https://b2btesterscom.s1.my.looru.ai/api/workflows/7f05ba7-f2e0-42f5-8bc3-fc0934ebc3c
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_basic_functionality.py::test_get_list_of_workflows</td>
+          <td class="col-duration">5.25</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Print URL https://b2btesterscom.s1.my.looru.ai/api/workflows
+json POST response body:  {
+    &quot;http_code&quot;: 200,
+    &quot;metadata&quot;: {
+        &quot;count&quot;: 25,
+        &quot;cursor&quot;: &quot;25&quot;
+    },
+    &quot;method&quot;: &quot;GET&quot;,
+    &quot;request_id&quot;: &quot;Root=1-64e89c4d-722c5c7b27ed215c7e98e8c0&quot;,
+    &quot;data&quot;: [
+        {
+            &quot;workflow_id&quot;: &quot;0a3f65a3-b3ee-4dfe-9f9f-2c7b3fed546f&quot;,
+            &quot;name&quot;: &quot;bnmsjj&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-18T18:17:17.420418+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-25T12:19:16.978680+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;e306aae7-24d2-4f9f-84c5-ecb31e6d093c&quot;,
+            &quot;name&quot;: &quot;API_AUTO_devl&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-25T12:19:10.711101+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-25T12:19:11.623478+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;b68e35e7-0cd4-47f0-bca8-5b7181b51307&quot;,
+            &quot;name&quot;: &quot;API_AUTO_ujnl&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-18T16:57:08.854677+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-25T12:11:59.058061+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;efb3185a-222c-4e2f-ab34-01aa5563681e&quot;,
+            &quot;name&quot;: &quot;API_AUTO_ciaw&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-25T12:11:10.742345+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-25T12:11:11.630273+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;b0b52d39-453f-4144-aec0-347369000301&quot;,
+            &quot;name&quot;: &quot;API_AUTO_zqxl&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-25T12:10:41.548821+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-25T12:10:42.489981+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;b7bfe7ef-925a-44f8-a236-a3ec04b592ae&quot;,
+            &quot;name&quot;: &quot;API_AUTO_fdhb&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-25T12:10:24.127302+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-25T12:10:25.049034+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;b9a92646-7e48-4114-8734-c9b430993a7e&quot;,
+            &quot;name&quot;: &quot;API_AUTO_tlpj&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-25T11:33:37.846557+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-25T11:33:38.857919+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;505c28ed-e5c7-4ea1-a116-fc37049e0ead&quot;,
+            &quot;name&quot;: &quot;API_AUTO_jsvj&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-25T11:18:15.440131+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-25T11:18:16.411878+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;2172161b-8551-49a2-915f-bd7cdb16c32b&quot;,
+            &quot;name&quot;: &quot;API_AUTO_dkux&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-25T04:42:23.215783+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-25T04:42:24.402896+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;081befe2-efdb-4328-a486-1f9b2b78b85b&quot;,
+            &quot;name&quot;: &quot;API_AUTO_oeny&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-24T16:41:29.146985+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T16:41:30.066307+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;675984cc-d40c-4f23-ba20-b7450599d1c8&quot;,
+            &quot;name&quot;: &quot;API_AUTO_audy&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-24T16:16:12.802059+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T16:16:13.966965+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;bf97da4a-535f-4fb9-962a-d84ac6bbd323&quot;,
+            &quot;name&quot;: &quot;API_AUTO_stmx&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-24T16:08:25.909076+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T16:08:26.907329+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;357a3b9e-d5f9-45d1-825f-effa5792bb6a&quot;,
+            &quot;name&quot;: &quot;API_AUTO_zfqo&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-24T12:56:31.272150+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T12:56:32.229416+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;f59f256b-9cb9-4d35-86ac-0144d1a9afa2&quot;,
+            &quot;name&quot;: &quot;API_AUTO_pzlx&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-24T11:10:47.613058+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T11:10:48.576913+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;77e8b7eb-efef-4960-bfb7-2603a3610f46&quot;,
+            &quot;name&quot;: &quot;API_AUTO_mqve&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-24T10:49:20.322358+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T10:49:21.307334+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;8b3d44fe-e3af-45ab-a69f-abe93461be76&quot;,
+            &quot;name&quot;: &quot;API_AUTO_bwya&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-24T09:41:43.545378+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T09:41:44.680709+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;88800edf-efad-4151-8059-2945a846699a&quot;,
+            &quot;name&quot;: &quot;API_AUTO_cvbr&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-24T09:40:42.228313+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T09:40:43.418620+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;d73849c6-5900-43b6-ac3e-0c6c39251a68&quot;,
+            &quot;name&quot;: &quot;API_AUTO_sutw&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-24T09:24:24.826647+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T09:24:25.758680+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;8d5a75db-c3bf-47d2-84e6-59425c00af10&quot;,
+            &quot;name&quot;: &quot;API_AUTO_nott&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-24T09:18:31.504670+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T09:18:33.178061+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;60ccd4e8-699c-43c4-8fe8-f1505aed9114&quot;,
+            &quot;name&quot;: &quot;API_AUTO_tvai&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-24T07:39:08.771975+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T07:39:09.750425+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;fc6db6f2-1ed7-4633-a8ed-ea89c578942c&quot;,
+            &quot;name&quot;: &quot;thursaday&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-17T05:49:05.025086+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-24T07:30:10.628229+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 13 * * 4&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;dealname&quot;,
+                                    &quot;value&quot;: &quot;b2b&quot;,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;group-dm&quot;,
+                        &quot;msg_template&quot;: &quot;hi hello Narender&quot;,
+                        &quot;conversations&quot;: null,
+                        &quot;fields&quot;: [],
+                        &quot;users&quot;: [
+                            &quot;U030NBU56QJ&quot;
+                        ],
+                        &quot;media_category&quot;: null,
+                        &quot;action_buttons&quot;: null,
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: {
+                            &quot;grouped&quot;: false,
+                            &quot;grouped_field&quot;: null
+                        },
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;7d9660fe-0f76-4173-a09b-dbefd43a3bbc&quot;,
+            &quot;name&quot;: &quot;hh&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;INACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-23T13:12:04.839339+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-23T13:12:58.746413+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;f589c9ed-911f-4785-a2d6-c0ea04e01542&quot;,
+            &quot;name&quot;: &quot;API_AUTO_thuk&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-23T13:12:47.534840+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-23T13:12:48.973263+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;5055bd09-66cb-4e89-a5cb-08a6c3038636&quot;,
+            &quot;name&quot;: &quot;API_AUTO_tggl&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-23T13:11:18.933947+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-23T13:11:19.858308+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        },
+        {
+            &quot;workflow_id&quot;: &quot;efa2429c-87d0-423a-82b3-11e44360a222&quot;,
+            &quot;name&quot;: &quot;API_AUTO_cpjx&quot;,
+            &quot;description&quot;: &quot;&quot;,
+            &quot;sor&quot;: &quot;HUBSPOT&quot;,
+            &quot;sor_object_name&quot;: &quot;deals&quot;,
+            &quot;state&quot;: &quot;ACTIVE&quot;,
+            &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;created_at&quot;: &quot;2023-08-23T13:07:08.558564+00:00&quot;,
+            &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+            &quot;updated_at&quot;: &quot;2023-08-23T13:07:09.530531+00:00&quot;,
+            &quot;evaluation&quot;: {
+                &quot;type&quot;: &quot;SCHEDULE&quot;,
+                &quot;data&quot;: {
+                    &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                    &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+                }
+            },
+            &quot;filter&quot;: {
+                &quot;version&quot;: &quot;v1&quot;,
+                &quot;data&quot;: {
+                    &quot;and&quot;: [
+                        {
+                            &quot;and&quot;: [
+                                {
+                                    &quot;op&quot;: &quot;=&quot;,
+                                    &quot;field&quot;: &quot;amount&quot;,
+                                    &quot;value&quot;: 25000,
+                                    &quot;originalOp&quot;: &quot;equals&quot;,
+                                    &quot;object_name&quot;: &quot;deals&quot;
+                                }
+                            ]
+                        },
+                        {
+                            &quot;or&quot;: []
+                        }
+                    ]
+                }
+            },
+            &quot;actions&quot;: [
+                {
+                    &quot;type&quot;: &quot;slack-message&quot;,
+                    &quot;data&quot;: {
+                        &quot;version&quot;: &quot;v1&quot;,
+                        &quot;type&quot;: &quot;conversation&quot;,
+                        &quot;msg_template&quot;: &quot; hello&quot;,
+                        &quot;conversations&quot;: [
+                            &quot;C05L4TVPFRD&quot;
+                        ],
+                        &quot;fields&quot;: [
+                            &quot;dealname&quot;,
+                            &quot;luru_deal_status&quot;,
+                            &quot;amount&quot;
+                        ],
+                        &quot;users&quot;: null,
+                        &quot;media_category&quot;: &quot;reminder&quot;,
+                        &quot;action_buttons&quot;: [
+                            {
+                                &quot;type&quot;: &quot;update-record&quot;,
+                                &quot;fields&quot;: [
+                                    &quot;dealname&quot;,
+                                    &quot;amount&quot;,
+                                    &quot;dealstage&quot;
+                                ]
+                            }
+                        ],
+                        &quot;msg_type&quot;: &quot;RECORD&quot;,
+                        &quot;report_config&quot;: null,
+                        &quot;report_desc&quot;: &quot;&quot;
+                    }
+                }
+            ]
+        }
+    ],
+    &quot;error_data&quot;: null
+}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_basic_functionality.py::test_get_spcific_workflow</td>
+          <td class="col-duration">1.06</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Print URL https://b2btesterscom.s1.my.looru.ai/api/workflows/1ff8fdae-cd05-4cc6-983f-5e8d35e5ccfa
+json POST response body:  {
+    &quot;http_code&quot;: 200,
+    &quot;metadata&quot;: null,
+    &quot;method&quot;: &quot;GET&quot;,
+    &quot;request_id&quot;: &quot;Root=1-64e89c4f-67f35b6650a3a47e4869159d&quot;,
+    &quot;data&quot;: {
+        &quot;workflow_id&quot;: &quot;1ff8fdae-cd05-4cc6-983f-5e8d35e5ccfa&quot;,
+        &quot;name&quot;: &quot;New workflow&quot;,
+        &quot;description&quot;: &quot;&quot;,
+        &quot;sor&quot;: &quot;HUBSPOT&quot;,
+        &quot;sor_object_name&quot;: &quot;deals&quot;,
+        &quot;state&quot;: &quot;ACTIVE&quot;,
+        &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+        &quot;created_at&quot;: &quot;2023-08-16T13:01:31.483990+00:00&quot;,
+        &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+        &quot;updated_at&quot;: &quot;2023-08-21T03:30:08.352498+00:00&quot;,
+        &quot;evaluation&quot;: {
+            &quot;type&quot;: &quot;SCHEDULE&quot;,
+            &quot;data&quot;: {
+                &quot;cron_expression&quot;: &quot;0 9 * * 1&quot;,
+                &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+            }
+        },
+        &quot;filter&quot;: {
+            &quot;version&quot;: &quot;v1&quot;,
+            &quot;data&quot;: {
+                &quot;and&quot;: [
+                    {
+                        &quot;and&quot;: [
+                            {
+                                &quot;op&quot;: &quot;=&quot;,
+                                &quot;field&quot;: &quot;dealname&quot;,
+                                &quot;value&quot;: &quot;b2b&quot;,
+                                &quot;originalOp&quot;: &quot;equals&quot;,
+                                &quot;object_name&quot;: &quot;deals&quot;
+                            }
+                        ]
+                    },
+                    {
+                        &quot;or&quot;: []
+                    }
+                ]
+            }
+        },
+        &quot;actions&quot;: [
+            {
+                &quot;type&quot;: &quot;slack-message&quot;,
+                &quot;data&quot;: {
+                    &quot;version&quot;: &quot;v1&quot;,
+                    &quot;type&quot;: &quot;conversation&quot;,
+                    &quot;msg_template&quot;: &quot;hi vinay&quot;,
+                    &quot;conversations&quot;: [
+                        &quot;C05MV43PZPY&quot;
+                    ],
+                    &quot;fields&quot;: [
+                        &quot;dealname&quot;,
+                        &quot;luru_deal_status&quot;
+                    ],
+                    &quot;users&quot;: null,
+                    &quot;media_category&quot;: null,
+                    &quot;action_buttons&quot;: null,
+                    &quot;msg_type&quot;: &quot;RECORD&quot;,
+                    &quot;report_config&quot;: {
+                        &quot;grouped&quot;: false,
+                        &quot;grouped_field&quot;: null
+                    },
+                    &quot;report_desc&quot;: &quot;&quot;
+                }
+            }
+        ]
+    },
+    &quot;error_data&quot;: null
+}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_basic_functionality.py::test_create_schedule_workflow</td>
+          <td class="col-duration">2.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>print URLhttps://b2btesterscom.s1.my.looru.ai/api/workflows
+File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\create_schedule_workflow_payload.json
+json POST response body:  {
+    &quot;http_code&quot;: 201,
+    &quot;metadata&quot;: null,
+    &quot;method&quot;: &quot;POST&quot;,
+    &quot;request_id&quot;: &quot;Root=1-64e89c50-5d89344c47086d087530a822&quot;,
+    &quot;data&quot;: {
+        &quot;workflow_id&quot;: &quot;697d9878-c474-4044-b84e-58f7b292b1c0&quot;,
+        &quot;name&quot;: &quot;API_AUTO_xyal&quot;,
+        &quot;description&quot;: &quot;&quot;,
+        &quot;sor&quot;: &quot;HUBSPOT&quot;,
+        &quot;sor_object_name&quot;: &quot;deals&quot;,
+        &quot;state&quot;: &quot;ACTIVE&quot;,
+        &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+        &quot;created_at&quot;: &quot;2023-08-25T12:19:28.764814+00:00&quot;,
+        &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+        &quot;updated_at&quot;: &quot;2023-08-25T12:19:29.886520+00:00&quot;,
+        &quot;evaluation&quot;: {
+            &quot;type&quot;: &quot;SCHEDULE&quot;,
+            &quot;data&quot;: {
+                &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+            }
+        },
+        &quot;filter&quot;: {
+            &quot;version&quot;: &quot;v1&quot;,
+            &quot;data&quot;: {
+                &quot;and&quot;: [
+                    {
+                        &quot;and&quot;: [
+                            {
+                                &quot;object_name&quot;: &quot;deals&quot;,
+                                &quot;field&quot;: &quot;amount&quot;,
+                                &quot;op&quot;: &quot;=&quot;,
+                                &quot;value&quot;: 25000,
+                                &quot;originalOp&quot;: &quot;equals&quot;
+                            }
+                        ]
+                    },
+                    {
+                        &quot;or&quot;: []
+                    }
+                ]
+            }
+        },
+        &quot;actions&quot;: [
+            {
+                &quot;type&quot;: &quot;slack-message&quot;,
+                &quot;data&quot;: {
+                    &quot;version&quot;: &quot;v1&quot;,
+                    &quot;type&quot;: &quot;conversation&quot;,
+                    &quot;msg_template&quot;: &quot; hello&quot;,
+                    &quot;conversations&quot;: [
+                        &quot;C05L4TVPFRD&quot;
+                    ],
+                    &quot;fields&quot;: [
+                        &quot;dealname&quot;,
+                        &quot;luru_deal_status&quot;,
+                        &quot;amount&quot;
+                    ],
+                    &quot;users&quot;: null,
+                    &quot;media_category&quot;: &quot;reminder&quot;,
+                    &quot;action_buttons&quot;: [
+                        {
+                            &quot;type&quot;: &quot;update-record&quot;,
+                            &quot;fields&quot;: [
+                                &quot;dealname&quot;,
+                                &quot;amount&quot;,
+                                &quot;dealstage&quot;
+                            ]
+                        }
+                    ],
+                    &quot;msg_type&quot;: &quot;RECORD&quot;,
+                    &quot;report_config&quot;: null,
+                    &quot;report_desc&quot;: &quot;&quot;
+                }
+            }
+        ]
+    },
+    &quot;error_data&quot;: null
+}
+workflow_id ===&gt; 697d9878-c474-4044-b84e-58f7b292b1c0
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_basic_functionality.py::test_update_workflow</td>
+          <td class="col-duration">2.57</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\update_workflow_payload.json
+print URLhttps://b2btesterscom.s1.my.looru.ai/api/workflows/697d9878-c474-4044-b84e-58f7b292b1c0
+json POST response body:  {
+    &quot;http_code&quot;: 202,
+    &quot;metadata&quot;: null,
+    &quot;method&quot;: &quot;PUT&quot;,
+    &quot;request_id&quot;: &quot;Root=1-64e89c52-44ee6e8f77b19e91132c995c&quot;,
+    &quot;data&quot;: {
+        &quot;workflow_id&quot;: &quot;697d9878-c474-4044-b84e-58f7b292b1c0&quot;,
+        &quot;name&quot;: &quot;API_AUTO_evyy&quot;,
+        &quot;description&quot;: &quot;&quot;,
+        &quot;sor&quot;: &quot;HUBSPOT&quot;,
+        &quot;sor_object_name&quot;: &quot;deals&quot;,
+        &quot;state&quot;: &quot;ACTIVE&quot;,
+        &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+        &quot;created_at&quot;: &quot;2023-08-25T12:19:28.764814+00:00&quot;,
+        &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+        &quot;updated_at&quot;: &quot;2023-08-25T12:19:32.180765+00:00&quot;,
+        &quot;evaluation&quot;: {
+            &quot;type&quot;: &quot;SCHEDULE&quot;,
+            &quot;data&quot;: {
+                &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+            }
+        },
+        &quot;filter&quot;: {
+            &quot;version&quot;: &quot;v1&quot;,
+            &quot;data&quot;: {
+                &quot;and&quot;: [
+                    {
+                        &quot;and&quot;: [
+                            {
+                                &quot;object_name&quot;: &quot;deals&quot;,
+                                &quot;field&quot;: &quot;amount&quot;,
+                                &quot;op&quot;: &quot;=&quot;,
+                                &quot;value&quot;: 25000,
+                                &quot;originalOp&quot;: &quot;equals&quot;
+                            }
+                        ]
+                    },
+                    {
+                        &quot;or&quot;: []
+                    }
+                ]
+            }
+        },
+        &quot;actions&quot;: [
+            {
+                &quot;type&quot;: &quot;slack-message&quot;,
+                &quot;data&quot;: {
+                    &quot;version&quot;: &quot;v1&quot;,
+                    &quot;type&quot;: &quot;conversation&quot;,
+                    &quot;msg_template&quot;: &quot; hello&quot;,
+                    &quot;conversations&quot;: [
+                        &quot;C05L4TVPFRD&quot;
+                    ],
+                    &quot;fields&quot;: [
+                        &quot;dealname&quot;,
+                        &quot;luru_deal_status&quot;,
+                        &quot;amount&quot;
+                    ],
+                    &quot;users&quot;: null,
+                    &quot;media_category&quot;: &quot;reminder&quot;,
+                    &quot;action_buttons&quot;: [
+                        {
+                            &quot;type&quot;: &quot;update-record&quot;,
+                            &quot;fields&quot;: [
+                                &quot;dealname&quot;,
+                                &quot;amount&quot;,
+                                &quot;dealstage&quot;
+                            ]
+                        }
+                    ],
+                    &quot;msg_type&quot;: &quot;RECORD&quot;,
+                    &quot;report_config&quot;: null,
+                    &quot;report_desc&quot;: &quot;&quot;
+                }
+            }
+        ]
+    },
+    &quot;error_data&quot;: null
+}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_basic_functionality.py::test_pause_workflow</td>
+          <td class="col-duration">1.58</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>print URLhttps://b2btesterscom.s1.my.looru.ai/api/workflows/697d9878-c474-4044-b84e-58f7b292b1c0/pause
+json POST response body:  {
+    &quot;http_code&quot;: 200,
+    &quot;metadata&quot;: null,
+    &quot;method&quot;: &quot;POST&quot;,
+    &quot;request_id&quot;: &quot;Root=1-64e89c55-3873a1925396acc93bf1557a&quot;,
+    &quot;data&quot;: {
+        &quot;workflow_id&quot;: &quot;697d9878-c474-4044-b84e-58f7b292b1c0&quot;,
+        &quot;name&quot;: &quot;API_AUTO_evyy&quot;,
+        &quot;description&quot;: &quot;&quot;,
+        &quot;sor&quot;: &quot;HUBSPOT&quot;,
+        &quot;sor_object_name&quot;: &quot;deals&quot;,
+        &quot;state&quot;: &quot;INACTIVE&quot;,
+        &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+        &quot;created_at&quot;: &quot;2023-08-25T12:19:28.764814+00:00&quot;,
+        &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+        &quot;updated_at&quot;: &quot;2023-08-25T12:19:34.034853+00:00&quot;,
+        &quot;evaluation&quot;: {
+            &quot;type&quot;: &quot;SCHEDULE&quot;,
+            &quot;data&quot;: {
+                &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+            }
+        },
+        &quot;filter&quot;: {
+            &quot;version&quot;: &quot;v1&quot;,
+            &quot;data&quot;: {
+                &quot;and&quot;: [
+                    {
+                        &quot;and&quot;: [
+                            {
+                                &quot;op&quot;: &quot;=&quot;,
+                                &quot;field&quot;: &quot;amount&quot;,
+                                &quot;value&quot;: 25000,
+                                &quot;originalOp&quot;: &quot;equals&quot;,
+                                &quot;object_name&quot;: &quot;deals&quot;
+                            }
+                        ]
+                    },
+                    {
+                        &quot;or&quot;: []
+                    }
+                ]
+            }
+        },
+        &quot;actions&quot;: [
+            {
+                &quot;type&quot;: &quot;slack-message&quot;,
+                &quot;data&quot;: {
+                    &quot;version&quot;: &quot;v1&quot;,
+                    &quot;type&quot;: &quot;conversation&quot;,
+                    &quot;msg_template&quot;: &quot; hello&quot;,
+                    &quot;conversations&quot;: [
+                        &quot;C05L4TVPFRD&quot;
+                    ],
+                    &quot;fields&quot;: [
+                        &quot;dealname&quot;,
+                        &quot;luru_deal_status&quot;,
+                        &quot;amount&quot;
+                    ],
+                    &quot;users&quot;: null,
+                    &quot;media_category&quot;: &quot;reminder&quot;,
+                    &quot;action_buttons&quot;: [
+                        {
+                            &quot;type&quot;: &quot;update-record&quot;,
+                            &quot;fields&quot;: [
+                                &quot;dealname&quot;,
+                                &quot;amount&quot;,
+                                &quot;dealstage&quot;
+                            ]
+                        }
+                    ],
+                    &quot;msg_type&quot;: &quot;RECORD&quot;,
+                    &quot;report_config&quot;: null,
+                    &quot;report_desc&quot;: &quot;&quot;
+                }
+            }
+        ]
+    },
+    &quot;error_data&quot;: null
+}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_basic_functionality.py::test_unpause_workflow</td>
+          <td class="col-duration">1.99</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>print URLhttps://b2btesterscom.s1.my.looru.ai/api/workflows/697d9878-c474-4044-b84e-58f7b292b1c0/unpause
+json POST response body:  {
+    &quot;http_code&quot;: 200,
+    &quot;metadata&quot;: null,
+    &quot;method&quot;: &quot;POST&quot;,
+    &quot;request_id&quot;: &quot;Root=1-64e89c57-1c2516f7092e2d6342845750&quot;,
+    &quot;data&quot;: {
+        &quot;workflow_id&quot;: &quot;697d9878-c474-4044-b84e-58f7b292b1c0&quot;,
+        &quot;name&quot;: &quot;API_AUTO_evyy&quot;,
+        &quot;description&quot;: &quot;&quot;,
+        &quot;sor&quot;: &quot;HUBSPOT&quot;,
+        &quot;sor_object_name&quot;: &quot;deals&quot;,
+        &quot;state&quot;: &quot;ACTIVE&quot;,
+        &quot;created_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+        &quot;created_at&quot;: &quot;2023-08-25T12:19:28.764814+00:00&quot;,
+        &quot;updated_by&quot;: &quot;8de5a504-b5f7-407f-a5ee-aa4870a1c640&quot;,
+        &quot;updated_at&quot;: &quot;2023-08-25T12:19:35.797646+00:00&quot;,
+        &quot;evaluation&quot;: {
+            &quot;type&quot;: &quot;SCHEDULE&quot;,
+            &quot;data&quot;: {
+                &quot;cron_expression&quot;: &quot;0 12 * * 1&quot;,
+                &quot;tz&quot;: &quot;Asia/Calcutta&quot;
+            }
+        },
+        &quot;filter&quot;: {
+            &quot;version&quot;: &quot;v1&quot;,
+            &quot;data&quot;: {
+                &quot;and&quot;: [
+                    {
+                        &quot;and&quot;: [
+                            {
+                                &quot;op&quot;: &quot;=&quot;,
+                                &quot;field&quot;: &quot;amount&quot;,
+                                &quot;value&quot;: 25000,
+                                &quot;originalOp&quot;: &quot;equals&quot;,
+                                &quot;object_name&quot;: &quot;deals&quot;
+                            }
+                        ]
+                    },
+                    {
+                        &quot;or&quot;: []
+                    }
+                ]
+            }
+        },
+        &quot;actions&quot;: [
+            {
+                &quot;type&quot;: &quot;slack-message&quot;,
+                &quot;data&quot;: {
+                    &quot;version&quot;: &quot;v1&quot;,
+                    &quot;type&quot;: &quot;conversation&quot;,
+                    &quot;msg_template&quot;: &quot; hello&quot;,
+                    &quot;conversations&quot;: [
+                        &quot;C05L4TVPFRD&quot;
+                    ],
+                    &quot;fields&quot;: [
+                        &quot;dealname&quot;,
+                        &quot;luru_deal_status&quot;,
+                        &quot;amount&quot;
+                    ],
+                    &quot;users&quot;: null,
+                    &quot;media_category&quot;: &quot;reminder&quot;,
+                    &quot;action_buttons&quot;: [
+                        {
+                            &quot;type&quot;: &quot;update-record&quot;,
+                            &quot;fields&quot;: [
+                                &quot;dealname&quot;,
+                                &quot;amount&quot;,
+                                &quot;dealstage&quot;
+                            ]
+                        }
+                    ],
+                    &quot;msg_type&quot;: &quot;RECORD&quot;,
+                    &quot;report_config&quot;: null,
+                    &quot;report_desc&quot;: &quot;&quot;
+                }
+            }
+        ]
+    },
+    &quot;error_data&quot;: null
+}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_basic_functionality.py::test_delete_workflow</td>
+          <td class="col-duration">3.84</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>print URLhttps://b2btesterscom.s1.my.looru.ai/api/workflows/697d9878-c474-4044-b84e-58f7b292b1c0
+json delete response body:  {
+    &quot;http_code&quot;: 200,
+    &quot;metadata&quot;: null,
+    &quot;method&quot;: &quot;DELETE&quot;,
+    &quot;request_id&quot;: &quot;Root=1-64e89c5a-134d45e633f09050766a4866&quot;,
+    &quot;data&quot;: &quot;&quot;,
+    &quot;error_data&quot;: null
+}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_create_schedule_workflow_with_valid_url</td>
+          <td class="col-duration">2.91</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\create_schedule_workflow_payload.json
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_create_schedule_workflow_with_invalid_url</td>
+          <td class="col-duration">0.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\create_schedule_workflow_payload.json
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_create_schedule_workflow_with_invalid_auth</td>
+          <td class="col-duration">0.97</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\create_schedule_workflow_payload.json
+json POST response body:  {
+    &quot;http_code&quot;: 401,
+    &quot;metadata&quot;: null,
+    &quot;method&quot;: &quot;POST&quot;,
+    &quot;request_id&quot;: &quot;Root=1-64e89c5f-2785681f02004db8544337ba&quot;,
+    &quot;data&quot;: null,
+    &quot;error_data&quot;: {
+        &quot;error_code&quot;: 10000,
+        &quot;message&quot;: &quot;Internal error&quot;,
+        &quot;description&quot;: &quot;Please contact Luru support with the requestID&quot;,
+        &quot;traceback&quot;: &quot;&quot;
+    }
+}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_create_schedule_workflow_with_invalid_body</td>
+          <td class="col-duration">1.99</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>json POST response body:  {
+    &quot;http_code&quot;: 400,
+    &quot;metadata&quot;: null,
+    &quot;method&quot;: &quot;POST&quot;,
+    &quot;request_id&quot;: &quot;Root=1-64e89c61-265aae960db9e45a7e125f70&quot;,
+    &quot;data&quot;: null,
+    &quot;error_data&quot;: {
+        &quot;error_code&quot;: 10901,
+        &quot;message&quot;: &quot;Workflow creation failed with invalid arguments: Mandatory param [name] not present in create request&quot;,
+        &quot;description&quot;: &quot;Please fix request and retry creation of workflow&quot;,
+        &quot;traceback&quot;: &quot;&quot;
+    }
+}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_create_schedule_workflow_with_invalid_endpoint</td>
+          <td class="col-duration">0.87</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\create_schedule_workflow_payload.json
+Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+JSON Decoding Error: Expecting value: line 2 column 1 (char 1)
+Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+Error occurred while decoding JSON data.
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_create_schedule_workflow_with_empty_body</td>
+          <td class="col-duration">0.89</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>json POST response body:  {
+    &quot;http_code&quot;: 400,
+    &quot;metadata&quot;: null,
+    &quot;method&quot;: &quot;POST&quot;,
+    &quot;request_id&quot;: &quot;Root=1-64e89c63-0f0fd8a72e53196e785910bf&quot;,
+    &quot;data&quot;: null,
+    &quot;error_data&quot;: {
+        &quot;error_code&quot;: 10901,
+        &quot;message&quot;: &quot;Workflow creation failed with invalid arguments: Mandatory param [name] not present in create request&quot;,
+        &quot;description&quot;: &quot;Please fix request and retry creation of workflow&quot;,
+        &quot;traceback&quot;: &quot;&quot;
+    }
+}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_update_workflow_with_valid_url</td>
+          <td class="col-duration">1.75</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\update_workflow_payload.json
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_update_workflow_with_invalid_url</td>
+          <td class="col-duration">0.06</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\update_workflow_payload.json
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_update_workflow_with_invalid_auth</td>
+          <td class="col-duration">1.28</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\update_workflow_payload.json
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_update_workflow_with_invalid_body</td>
+          <td class="col-duration">2.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\update_workflow_payload.json
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_update_workflow_with_invalid_endpoint</td>
+          <td class="col-duration">1.62</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>File path: C:\looruapiautomation\hubspot_workflows_api_tests\testdata_hs\update_workflow_payload.json
+Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+JSON Decoding Error: Expecting value: line 2 column 1 (char 1)
+Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+Error occurred while decoding JSON data.
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_update_workflow_with_empty_body</td>
+          <td class="col-duration">1.24</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_pause_workflow_with_valid_url</td>
+          <td class="col-duration">2.25</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_pause_workflow_with_invalid_url</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_pause_workflow_with_invalid_auth</td>
+          <td class="col-duration">1.68</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_pause_workflow_with_invalid_body</td>
+          <td class="col-duration">1.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_pause_workflow_with_invalid_endpoint</td>
+          <td class="col-duration">1.39</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+JSON Decoding Error: Expecting value: line 2 column 1 (char 1)
+Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+Error occurred while decoding JSON data.
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_pause_workflow_with_empty_body</td>
+          <td class="col-duration">0.83</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_unpause_workflow_with_valid_url</td>
+          <td class="col-duration">0.87</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_unpause_workflow_with_invalid_url</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_unpause_workflow_with_invalid_auth</td>
+          <td class="col-duration">1.59</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_unpause_workflow_with_invalid_body</td>
+          <td class="col-duration">1.36</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_unpause_workflow_with_invalid_endpoint</td>
+          <td class="col-duration">1.61</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+JSON Decoding Error: Expecting value: line 2 column 1 (char 1)
+Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+Error occurred while decoding JSON data.
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_unpause_workflow_with_empty_body</td>
+          <td class="col-duration">1.62</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_get_list_of_workflows_with_valid_url</td>
+          <td class="col-duration">2.47</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_get_list_of_workflows_with_invalid_url</td>
+          <td class="col-duration">0.07</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_get_list_of_workflows_with_invalid_auth</td>
+          <td class="col-duration">1.45</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_get_list_of_workflows_with_invalid_endpoint</td>
+          <td class="col-duration">1.10</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+JSON Decoding Error: Expecting value: line 2 column 1 (char 1)
+Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+Error occurred while decoding JSON data.
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_get_specific_workflow_with_valid_url</td>
+          <td class="col-duration">1.62</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_get_specific_workflow_with_invalid_url</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_get_specific_workflow_with_invalid_auth</td>
+          <td class="col-duration">1.30</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_hs_workflows_input_validation.py::test_validate_get_specific_workflow_with_invalid_endpoint</td>
+          <td class="col-duration">0.86</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+JSON Decoding Error: Expecting value: line 2 column 1 (char 1)
+Response Content: b&#x27;\n&lt;!doctype html&gt;\n&lt;html lang=&quot;en&quot;&gt;\n&lt;head&gt;\n  &lt;title&gt;Not Found&lt;/title&gt;\n&lt;/head&gt;\n&lt;body&gt;\n  &lt;h1&gt;Not Found&lt;/h1&gt;&lt;p&gt;The requested resource was not found on this server.&lt;/p&gt;\n&lt;/body&gt;\n&lt;/html&gt;\n&#x27;
+Error occurred while decoding JSON data.
+<br/></div></td></tr></tbody></table></body></html>
